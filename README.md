@@ -55,3 +55,35 @@ docker run --name rqm-frontend -p 80:80 -d rqm-front
 - `vite.config.ts` — конфигурация сборщика Vite.
 - `tsconfig.json` — настройки TypeScript.
 - `nginx.conf` — конфигурационный файл для веб-сервера Nginx (используется внутри Docker).
+
+## Runtime-конфигурация (без пересборки)
+
+Проект поддерживает внешнюю конфигурацию, которую можно менять на хосте без пересборки приложения.
+
+- Файл `public/config.js` загружается в `index.html` и предоставляет объект `window.APP_CONFIG`.
+	Пример содержимого `public/config.js`:
+
+	```js
+	window.APP_CONFIG = {
+		backendUrl: "",   // URL API (можно оставить пустым для same-origin)
+		basePath: "",     // префикс, где размещено приложение (например "/app")
+		assetsPath: ""    // путь к статике, если нужен отдельный
+	};
+	```
+
+- Переменная окружения для сборки: в корне проекта можно использовать `.env` с `VITE_BASE_PATH`.
+	Она влияет на `import.meta.env.VITE_BASE_PATH` и может использоваться при сборке/рендеринге путей.
+
+- Рекомендуемая практика в коде для построения URL-ов:
+
+	```js
+	const runtimeBase = window.APP_CONFIG && window.APP_CONFIG.basePath ? window.APP_CONFIG.basePath : '';
+	const buildBase = import.meta.env.VITE_BASE_PATH || '';
+	const base = runtimeBase || buildBase || '';
+
+	// пример использования
+	fetch(`${base}/api/quotes`)
+	```
+
+- Для изменения путей в продакшн-сервере просто отредактируйте `public/config.js` в директории, где лежит статическая сборка (или проксируйте запросы к нужным адресам в Nginx). Это позволяет менять `backendUrl`/`basePath` без новой сборки.
+
