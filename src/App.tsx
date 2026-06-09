@@ -10,10 +10,34 @@ interface Quote {
 declare global {
   interface Window {
     APP_CONFIG: {
-      backendUrl: string;
+      backendUrl?: string;
+      basePath?: string;
+      assetsPath?: string;
     };
   }
 }
+
+// Compute base path for the application. Priority:
+// 1. runtime `window.APP_CONFIG.basePath` (if provided)
+// 2. derive first path segment from `window.location.pathname` (e.g. '/rqm' from '/rqm/' or '/rqm/page')
+// 3. empty string for root
+const getBasePrefix = (): string => {
+  const cfg = window.APP_CONFIG && window.APP_CONFIG.basePath;
+  if (cfg && cfg.trim() !== '') return cfg.replace(/\/+$|^\s+|\s+$/g, '').replace(/\/$/, '');
+
+  const path = window.location.pathname || '/';
+  if (path === '/') return '';
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return '';
+  return `/${parts[0]}`;
+};
+
+const getBackendBase = (): string => {
+  const configured = window.APP_CONFIG && window.APP_CONFIG.backendUrl;
+  if (configured && configured.trim() !== '') return configured.replace(/\/$/, '');
+  const prefix = getBasePrefix();
+  return prefix ? `${prefix}/api` : '/api';
+};
 
 function App() {
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -25,8 +49,8 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const backendUrl = window.APP_CONFIG?.backendUrl || '';
-      const response = await fetch(`${backendUrl}/api/quote/random`);
+      const backendBase = getBackendBase();
+      const response = await fetch(`${backendBase}/quote/random`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch quote');
