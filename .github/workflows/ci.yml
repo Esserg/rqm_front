@@ -3,32 +3,37 @@ name: CI/CD Frontend Pipeline
 on:
   push:
     branches:
-      - main # Пайплайн сработает при пуше в главную ветку фронтенда
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-and-push:
-    # КРИТИЧНО: Привязываем сборку строго к вашему новому фронтенд-раннеру
-    runs-on: [self-hosted, rqm-frontend]
+    # Runs on our cluster self-hosted runner
+    runs-on: [self-hosted, linux]
 
     steps:
-      # Шаг 1: Скачиваем исходный код фронтенда на раннер
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # Шаг 2: Сборка Docker-образа и отправка в локальный Registry
-      - name: Build and Push Docker Image
+      - name: Build & Push Docker Image
+        shell: bash
         run: |
-          REGISTRY_URL="docker-registry.home.local"
+          REGISTRY="${DOCKER_REGISTRY_URL:-registry.local}"
           IMAGE_NAME="rqm-frontend"
-          IMAGE_TAG="${{ github.sha }}" # Уникальный тег на основе хэша коммита
-          
-          echo "==== Сборка Docker-образа фронтенда ===="
-          # Docker сам запустит npm install и npm run build внутри контейнера
-          docker build -t $REGISTRY_URL/$IMAGE_NAME:$IMAGE_TAG .
-          
-          echo "==== Пуш образа в локальный Registry ===="
-          docker push $REGISTRY_URL/$IMAGE_NAME:$IMAGE_TAG
-          
-          echo "==== Создание и пуш тега latest ===="
-          docker tag $REGISTRY_URL/$IMAGE_NAME:$IMAGE_TAG $REGISTRY_URL/$IMAGE_NAME:latest
-          docker push $REGISTRY_URL/$IMAGE_NAME:latest
+          IMAGE_TAG="${{ github.sha }}"
+
+          echo "=========================================="
+          echo "Building $IMAGE_NAME:$IMAGE_TAG..."
+          echo "Target Registry: $REGISTRY"
+          echo "=========================================="
+
+          docker build -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG -t $REGISTRY/$IMAGE_NAME:latest -f ./Dockerfile .
+
+          echo "Pushing image to registry..."
+          docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG
+          docker push $REGISTRY/$IMAGE_NAME:latest
+
+          echo "Successfully pushed $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
